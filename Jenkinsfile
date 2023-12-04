@@ -1,29 +1,56 @@
 pipeline {
     agent any
-
-    environment {
-        DOCKER_IMAGE_NAME = 'pythonimage'
+    environment{
+        DOCKER_IMAGE_NAME = 'mypythonimage2'
         DOCKERFILE_PATH = 'Dockerfile'
-        CONTAINER_NAME = 'pythonapp'
+        CONTAINER_NAME= 'pythonv22'
         DOCKER_CREDENTIAL_ID = 'DOCKER'
         DOCKER_REGISTRY = 'docker.io'
+        
     }
     stages {
-        stage('Checkout') {
-            steps {
-                git 'https://github.com/teamdevops128/python-app.git'
+        stage('checkout'){
+            steps{
+                git 'https://github.com/rudravasu2021/DockerApp.git'
+                
             }
         }
-    
         stage('DockerBuild') {
             steps {
                 script{
-                    def dockerTag = "nitinjoshicancerian20/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
-                    docker.build(dockerTag, "-f ${DOCKERFILE_PATH} .") 
-              }
+                    docker.build("nitinjoshicancerian20/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}" , "-f ${DOCKERFILE_PATH} .")
+                }
+            }
         }
+        stage('run conatiner'){
+            steps{
+                script{
+                    // Check if the container exists
+                    def containerExists = sh(script: "docker ps -a --format '{{.Names}}' | grep ${CONTAINER_NAME}", returnStatus: true)
+                    
+                    // Stop and remove the existing container if it exists
+                    if (containerExists == 0) {
+                        sh "docker stop ${CONTAINER_NAME}"
+                        sh "docker rm ${CONTAINER_NAME}"
+                    }
+                    sh "docker run -d -p 8980:5000 --name ${CONTAINER_NAME} nitinjoshicancerian20/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}"
+                }
+            }
         }
- stage('Push Docker Image') {
+        stage('Security Scan') {
+            steps {
+                script {
+                    def trivyOutput = sh(script: "trivy image nitinjoshicancerian20/${DOCKER_IMAGE_NAME}:${BUILD_NUMBER}", returnStdout: true).trim()
+
+                    echo "Trivy Scan Results:\n${trivyOutput}"
+
+                    if (trivyOutput.contains("high vulnerabilities")) {
+                        error "High vulnerabilities found. Build failed."
+                    }
+                }
+            }
+        }
+  stage('Push Docker Image') {
             steps {
                 script {
                     // Authenticate with Docker registry using Jenkins credentials
